@@ -14,7 +14,6 @@
 # Authors	Steffen Vogel <post@steffenvogel.de>
 #           Roman Belkov  <roman.belkov@gmail.com>
 # Link		http://www.steffenvogel.de
-#
 
 # A name common to all output files (elf, map, hex, bin, lst)
 TARGET     = demo
@@ -26,10 +25,9 @@ BOARD_UC   = STM32F429I-Discovery
 BOARD_LC   = stm32f429i_discovery
 BSP_BASE   = $(BOARD_LC)
 
-OCDFLAGS   = -f board/stm32f429discovery.cfg
+OPENOCD_FLAGS = -f board/stm32f429discovery.cfg
 GDBFLAGS   =
 
-#EXAMPLE   = Templates
 EXAMPLE    = Examples/GPIO/GPIO_EXTI
 
 # MCU family and type in various capitalizations o_O
@@ -40,70 +38,103 @@ MCU_UC     = STM32F429ZI
 
 MCU_HAL = $(MCU_FAMILY)_hal
 
-# path of the ld-file inside the example directories
-LDFILE     = SW4STM32/$(BOARD_UC)/$(MCU_UC)Tx_FLASH.ld
-#LDFILE     = $(EXAMPLE)/TrueSTUDIO/$(BOARD_UC)/$(MCU_UC)_FLASH.ld
+LIBRARIES ?= .
 
-# Your C files from the /src directory
-SOURCES_DIR = src
-OBJECTS_DIR = obj
-DEP_DIR = dep
+SOURCES_DIR = Src
+INC_DIR     = Include
+OBJECTS_DIR = Obj
+DEP_DIR     = Dep
+SUPPORT_DIR = Support
+TM_LIBRARIES_DIR = TM_LIBRARIES
+TM_LIBRARIES_SRC = $(TM_LIBRARIES_DIR)/Src
+TM_LIBRARIES_Peripherals = $(TM_LIBRARIES_DIR)/StdPeriph
+
+# path to the ld file 
+LDFILE     = $(SUPPORT_DIR)/$(MCU_UC)Tx_FLASH.ld
+
+# http://stackoverflow.com/a/12959694
+# Make does not offer a recursive wildcard function, so here's one:
+rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 
-#SOURCES = $(wildcard $(SOURCES_DIR)/*.c)
-SOURCES := $(notdir $(shell find $(SOURCES_DIR) -name '*.c'))
-CPP_SOURCES := $(notdir $(shell find $(SOURCES_DIR) -name '*.cpp'))
+#CPP_SOURCES := $(notdir $(shell find $(SOURCES_DIR) -name '*.cpp'))
+
 #DEPS    = $(patsubst $(SOURCES_DIR)/%.c, $(DEP_DIR)/%.d, $(SOURCES))
 
 # Basic HAL libraries
-SOURCES += $(MCU_HAL)_rcc.c $(MCU_HAL)_rcc_ex.c $(MCU_HAL).c $(MCU_HAL)_cortex.c $(MCU_HAL)_gpio.c $(MCU_HAL)_pwr_ex.c $(BSP_BASE).c
+#SOURCES += $(MCU_HAL)_rcc.c $(MCU_HAL)_rcc_ex.c $(MCU_HAL).c $(MCU_HAL)_cortex.c $(MCU_HAL)_gpio.c $(MCU_HAL)_pwr_ex.c $(BSP_BASE).c \
+           $(MCU_HAL)_dma.c $(MCU_HAL)_dma_ex.c $(MCU_HAL)_dma2d.c $(MCU_HAL)_gpio.c $(MCU_HAL)_ltdc.c $(MCU_HAL)_ltdc_ex.c $(MCU_FAMILY)_ll_fmc.c \
+           $(MCU_HAL)_spi.c
 
+
+
+TM_LIBRARIES_DIR = TM_LIBRARIES
+TM_LIBRARIES_SRC = $(TM_LIBRARIES_DIR)/Src
+TM_LIBRARIES_Peripherals = $(TM_LIBRARIES_DIR)/StdPeriph
+#TM_LIBRARIES_INC = $(TM_LIBRARIES_DIR)/Inc
+
+#SOURCES := $(notdir $(call rwildcard,.,*.c))
+SOURCES := $(notdir $(call rwildcard,$(SOURCES_DIR),*.c))
+SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_SRC),*.c))
+SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_Peripherals)/Src,*.c))
+
+SOURCES += $(notdir $(call rwildcard,$(SOURCES_DIR),*.cpp))
+SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_SRC),*.cpp))
+SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_Peripherals)/Src,*.cpp))
 # Directories
 
 # TODO hardcode
-OCD_DIR    = ~/install/openocd-0.9.0/
-OCD_SCRIPTS_DIR = $(OCD_DIR)/scripts/
+OPENOCD_DIR         ?= ~/install/openocd-0.9.0
+OPENOCD_BIN_DIR     ?= $(OPENOCD_DIR)/bin
+OPENOCD_SCRIPTS_DIR  = $(OPENOCD_DIR)/scripts
+OPENOCD             ?= $(OPENOCD_BIN_DIR)/openocd.exe
 
 CUBE_DIR   = cube
-
 BSP_DIR    = $(CUBE_DIR)/Drivers/BSP/$(BOARD_UC)
 HAL_DIR    = $(CUBE_DIR)/Drivers/STM32F4xx_HAL_Driver
-CMSIS_DIR  = $(CUBE_DIR)/Drivers/CMSIS
+#$(CUBE_DIR)/Drivers/CMSIS
+CMSIS_DIR  =  $(TM_LIBRARIES_DIR)/CMSIS
+# $(TM_LIBRARIES_DIR)/CMSIS
 
 DEV_DIR    = $(CMSIS_DIR)/Device/ST/STM32F4xx
 
 # that's it, no need to change anything below this line!
 
 ###############################################################################
-# Toolchain
+# Compiler toolchain
 
 PREFIX     = arm-none-eabi
 CC         = $(PREFIX)-gcc
+CXX        = $(PREFIX)-gcc
 AR         = $(PREFIX)-ar
 OBJCOPY    = $(PREFIX)-objcopy
 OBJDUMP    = $(PREFIX)-objdump
 SIZE       = $(PREFIX)-size
 GDB        = $(PREFIX)-gdb
 
-# TODO hardcode
-OCD        = $(OCD_DIR)/bin-x64/openocd.exe  
 
 ###############################################################################
 # Options
 
 # Defines
-DEFS       = -D$(MCU_MC) -DUSE_HAL_DRIVER
+DEFS       = -D$(MCU_MC) -DUSE_STDPERIPH_DRIVER -DKEIL_IDE
+#-DUSE_HAL_DRIVER
 
 # Debug specific definitions for semihosting
 DEFS       += -DUSE_DBPRINTF
 
 # Include search paths (-I)
 #INCS       = -Isrc
-INCS       = -Iinc
+INCS       = -I.
+INCS      += -I$(INC_DIR)
 INCS      += -I$(BSP_DIR)
 INCS      += -I$(CMSIS_DIR)/Include
 INCS      += -I$(DEV_DIR)/Include
-INCS      += -I$(HAL_DIR)/Inc
+#INCS      += -I$(HAL_DIR)/Inc
+INCS      += -I$(TM_LIBRARIES_DIR)/Include
+INCS      += -I$(TM_LIBRARIES_Peripherals)/Include
+INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Include
+INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Device/ST/STM32F4xx/Include
 
 # Library search paths
 LIBS       = -L$(CMSIS_DIR)/Lib
@@ -115,6 +146,8 @@ CFLAGS    += -mfpu=fpv4-sp-d16 -mfloat-abi=softfp
 CFLAGS    += -ffunction-sections -fdata-sections
 CFLAGS    += $(INCS) $(DEFS)
 
+CXXFLAGS   = $(CFLAGS)
+
 # Linker flags
 LDFLAGS    = -Wl,--gc-sections -Wl,-Map=$(TARGET).map $(LIBS) -T$(LDFILE)
 
@@ -122,15 +155,16 @@ LDFLAGS    = -Wl,--gc-sections -Wl,-Map=$(TARGET).map $(LIBS) -T$(LDFILE)
 LDFLAGS   += --specs=rdimon.specs -lc -lrdimon
 
 # Source search paths
-VPATH      = ./src
+VPATH      = .
+VPATH     += $(SOURCES_DIR)
 VPATH     += $(BSP_DIR)
 VPATH     += $(HAL_DIR)/Src
 VPATH     += $(DEV_DIR)/Source/
+VPATH     += $(TM_LIBRARIES_SRC)
+VPATH     += $(TM_LIBRARIES_Peripherals)/Src
 
-OBJECTS := $(addprefix $(OBJECTS_DIR)/,$(SOURCES:%.c=%.o))
-CPP_OBJECTS := $(addprefix $(OBJECTS_DIR)/,$(CPP_SOURCES:%.cpp=%.o))
-
-DEPS    := $(addprefix $(DEP_DIR)/,$(SOURCES:%.c=%.d))
+OBJECTS := $(addprefix $(OBJECTS_DIR)/,$(addsuffix .o,$(basename $(SOURCES))))
+DEPS    := $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(basename $(SOURCES))))
 
 # Prettify output
 V = 0
@@ -141,14 +175,14 @@ endif
 
 ###################################################
 
-.PHONY: all dirs program clean # debug template clean
+.PHONY: all dirs program clean # debug template
 
 all: $(TARGET).bin
 
 -include $(DEPS)
 
-dirs: dep obj
-dep obj src:
+dirs: Dep Obj
+Dep Obj src:
 	@echo "[MKDIR]   $@"
 	$Qmkdir -p $@
 
@@ -158,9 +192,9 @@ $(OBJECTS_DIR)/%.o : %.c | dirs
 
 $(OBJECTS_DIR)/%.o : %.cpp | dirs
 	@echo "[CC]      $(notdir $<)"
-	$(CC) $(CFLAGS) -c -o $@ $< -MMD -MF dep/$(*F).d
+	$(CXX) $(CXXFLAGS) -c -o $@ $< -MMD -MF dep/$(*F).d
 
-$(TARGET).elf: $(OBJECTS) $(CPP_OBJECTS)
+$(TARGET).elf: $(OBJECTS) 
 	@echo "[LD]      $(TARGET).elf"
 	$(CC) $(CFLAGS) $(LDFLAGS) src/startup_$(MCU_LC).s $^ -o $@
 	@echo "[OBJDUMP] $(TARGET).lst"
@@ -173,11 +207,14 @@ $(TARGET).bin: $(TARGET).elf
 	$Q$(OBJCOPY) -O binary $< $@
 
 openocd:
-	$(OCD) -s $(OCD_SCRIPTS_DIR) $(OCDFLAGS)
+	$(OPENOCD) -s $(OPENOCD_SCRIPTS_DIR) $(OPENOCD_FLAGS)
 
 program: #all
-	$(OCD) -s $(OCD_SCRIPTS_DIR) $(OCDFLAGS) -c "program $(TARGET).elf verify reset" -c "shutdown"
+	$(OPENOCD) -s $(OPENOCD_SCRIPTS_DIR) $(OPENOCD_FLAGS) \
+	           -c "program $(TARGET).elf verify reset" \
+	           -c "shutdown"
 
+# TODO currently does not tested
 debug:
 	@if ! nc -z localhost 3333; then \
 		echo "\n\t[Error] OpenOCD is not running! Start it with: 'make openocd'\n"; exit 1; \
@@ -191,6 +228,7 @@ debug:
 	fi
 
 clean:
+	@echo "$(LIBRARIES)"
 	@echo "$(SOURCES)"
 	@echo "$(OBJECTS)"
 	@echo "[RM]      $(TARGET).bin"; rm -f $(TARGET).bin
