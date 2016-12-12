@@ -40,17 +40,19 @@ MCU_HAL = $(MCU_FAMILY)_hal
 
 LIBRARIES ?= .
 
-SOURCES_DIR = Src
-INC_DIR     = Include
+SOURCES_DIR = $(LIBRARIES)/Src
+INC_DIR     = $(LIBRARIES)/Include
 OBJECTS_DIR = Obj
 DEP_DIR     = Dep
-SUPPORT_DIR = Support
-TM_LIBRARIES_DIR = TM_LIBRARIES
+SUPPORT_DIR = $(LIBRARIES)/Support
+TM_LIBRARIES_DIR = $(LIBRARIES)/TM_LIBRARIES
 TM_LIBRARIES_SRC = $(TM_LIBRARIES_DIR)/Src
 TM_LIBRARIES_Peripherals = $(TM_LIBRARIES_DIR)/StdPeriph
 
 # path to the ld file 
 LDFILE     = $(SUPPORT_DIR)/$(MCU_UC)Tx_FLASH.ld
+
+START_ASM  = $(SUPPORT_DIR)/startup_$(MCU_LC).s
 
 # http://stackoverflow.com/a/12959694
 # Make does not offer a recursive wildcard function, so here's one:
@@ -66,11 +68,6 @@ rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
            $(MCU_HAL)_dma.c $(MCU_HAL)_dma_ex.c $(MCU_HAL)_dma2d.c $(MCU_HAL)_gpio.c $(MCU_HAL)_ltdc.c $(MCU_HAL)_ltdc_ex.c $(MCU_FAMILY)_ll_fmc.c \
            $(MCU_HAL)_spi.c
 
-
-
-TM_LIBRARIES_DIR = TM_LIBRARIES
-TM_LIBRARIES_SRC = $(TM_LIBRARIES_DIR)/Src
-TM_LIBRARIES_Peripherals = $(TM_LIBRARIES_DIR)/StdPeriph
 #TM_LIBRARIES_INC = $(TM_LIBRARIES_DIR)/Inc
 
 #SOURCES := $(notdir $(call rwildcard,.,*.c))
@@ -78,6 +75,7 @@ SOURCES := $(notdir $(call rwildcard,$(SOURCES_DIR),*.c))
 SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_SRC),*.c))
 SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_Peripherals)/Src,*.c))
 
+SOURCES += $(notdir $(wildcard *.cpp))
 SOURCES += $(notdir $(call rwildcard,$(SOURCES_DIR),*.cpp))
 SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_SRC),*.cpp))
 SOURCES += $(notdir $(call rwildcard,$(TM_LIBRARIES_Peripherals)/Src,*.cpp))
@@ -89,13 +87,13 @@ OPENOCD_BIN_DIR     ?= $(OPENOCD_DIR)/bin
 OPENOCD_SCRIPTS_DIR  = $(OPENOCD_DIR)/scripts
 OPENOCD             ?= $(OPENOCD_BIN_DIR)/openocd.exe
 
-CUBE_DIR   = cube
-BSP_DIR    = $(CUBE_DIR)/Drivers/BSP/$(BOARD_UC)
-HAL_DIR    = $(CUBE_DIR)/Drivers/STM32F4xx_HAL_Driver
+#CUBE_DIR   = cube
+#BSP_DIR    = $(CUBE_DIR)/Drivers/BSP/$(BOARD_UC)
+#HAL_DIR    = $(CUBE_DIR)/Drivers/STM32F4xx_HAL_Driver
 #$(CUBE_DIR)/Drivers/CMSIS
-CMSIS_DIR  =  $(TM_LIBRARIES_DIR)/CMSIS
-# $(TM_LIBRARIES_DIR)/CMSIS
 
+# $(TM_LIBRARIES_DIR)/CMSIS
+CMSIS_DIR  =  $(TM_LIBRARIES_DIR)/CMSIS
 DEV_DIR    = $(CMSIS_DIR)/Device/ST/STM32F4xx
 
 # that's it, no need to change anything below this line!
@@ -117,7 +115,7 @@ GDB        = $(PREFIX)-gdb
 # Options
 
 # Defines
-DEFS       = -D$(MCU_MC) -DUSE_STDPERIPH_DRIVER -DKEIL_IDE
+DEFS       = -D$(MCU_MC) -DUSE_STDPERIPH_DRIVER -DKEIL_IDE -DSTM32F429_439xx
 #-DUSE_HAL_DRIVER
 
 # Debug specific definitions for semihosting
@@ -127,26 +125,26 @@ DEFS       += -DUSE_DBPRINTF
 #INCS       = -Isrc
 INCS       = -I.
 INCS      += -I$(INC_DIR)
-INCS      += -I$(BSP_DIR)
+#INCS      += -I$(BSP_DIR)
 INCS      += -I$(CMSIS_DIR)/Include
 INCS      += -I$(DEV_DIR)/Include
 #INCS      += -I$(HAL_DIR)/Inc
 INCS      += -I$(TM_LIBRARIES_DIR)/Include
 INCS      += -I$(TM_LIBRARIES_Peripherals)/Include
-INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Include
-INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Device/ST/STM32F4xx/Include
+#INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Include
+#INCS      += -I$(CUBE_DIR)/Drivers/CMSIS/Device/ST/STM32F4xx/Include
 
 # Library search paths
 LIBS       = -L$(CMSIS_DIR)/Lib
 
 # Compiler flags
-CFLAGS     = -Wall -g -std=gnu++11 -Os
+CFLAGS     = -Wall -g -std=c99 -Os
 CFLAGS    += -mcpu=cortex-m4 -mthumb
 CFLAGS    += -mfpu=fpv4-sp-d16 -mfloat-abi=softfp
 CFLAGS    += -ffunction-sections -fdata-sections
 CFLAGS    += $(INCS) $(DEFS)
 
-CXXFLAGS   = $(CFLAGS)
+CXXFLAGS   = $(CFLAGS) -std=gnu++11
 
 # Linker flags
 LDFLAGS    = -Wl,--gc-sections -Wl,-Map=$(TARGET).map $(LIBS) -T$(LDFILE)
@@ -157,7 +155,7 @@ LDFLAGS   += --specs=rdimon.specs -lc -lrdimon
 # Source search paths
 VPATH      = .
 VPATH     += $(SOURCES_DIR)
-VPATH     += $(BSP_DIR)
+#VPATH     += $(BSP_DIR)
 VPATH     += $(HAL_DIR)/Src
 VPATH     += $(DEV_DIR)/Source/
 VPATH     += $(TM_LIBRARIES_SRC)
@@ -196,7 +194,7 @@ $(OBJECTS_DIR)/%.o : %.cpp | dirs
 
 $(TARGET).elf: $(OBJECTS) 
 	@echo "[LD]      $(TARGET).elf"
-	$(CC) $(CFLAGS) $(LDFLAGS) src/startup_$(MCU_LC).s $^ -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(START_ASM) $^ -o $@
 	@echo "[OBJDUMP] $(TARGET).lst"
 	$Q$(OBJDUMP) -St $(TARGET).elf >$(TARGET).lst
 	@echo "[SIZE]    $(TARGET).elf"
@@ -235,6 +233,6 @@ clean:
 	@echo "[RM]      $(TARGET).elf"; rm -f $(TARGET).elf
 	@echo "[RM]      $(TARGET).map"; rm -f $(TARGET).map
 	@echo "[RM]      $(TARGET).lst"; rm -f $(TARGET).lst
-	@echo "[RMDIR]   dep"          ; rm -rf dep
-	@echo "[RMDIR]   obj"          ; rm -rf obj
+	@echo "[RMDIR]   dep"          ; rm -rf $(DEP_DIR)
+	@echo "[RMDIR]   obj"          ; rm -rf $(OBJECTS_DIR)
 
